@@ -1,8 +1,15 @@
 import NextAuth from "next-auth";
 import Resend from "next-auth/providers/resend";
 import { SupabaseAdapter } from "@auth/supabase-adapter";
-import { getOrCreateUser, hasUsedTrial } from "./supabase";
+import { getOrCreateUser } from "./supabase";
 import type { SessionUser } from "@cvoptimizador/types";
+
+// Extend NextAuth session user type
+declare module "next-auth" {
+  interface User {
+    trial_used?: boolean;
+  }
+}
 
 if (!process.env.AUTH_SECRET) {
   throw new Error("Missing AUTH_SECRET environment variable");
@@ -104,9 +111,8 @@ export async function requireAuth(): Promise<SessionUser> {
  * Generate a JWT for API authentication
  */
 export async function generateApiToken(userId: string, email: string): Promise<string> {
-  // This will be implemented when we add API calls to FastAPI
-  // For now, we use the session token from NextAuth
   const { encode } = await import("next-auth/jwt");
+  const salt = "authjs.session-token";
 
   return encode({
     token: {
@@ -116,5 +122,6 @@ export async function generateApiToken(userId: string, email: string): Promise<s
       exp: Math.floor(Date.now() / 1000) + 60 * 60, // 1 hour
     },
     secret: process.env.AUTH_SECRET!,
+    salt,
   });
 }
