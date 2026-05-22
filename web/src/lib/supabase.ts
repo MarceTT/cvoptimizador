@@ -9,8 +9,16 @@ export interface Database {
     Tables: {
       users: {
         Row: User;
-        Insert: Omit<User, "id" | "created_at">;
-        Update: Partial<Omit<User, "id">>;
+        Insert: {
+          email: string;
+          trial_used_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: {
+          email?: string;
+          trial_used_at?: string | null;
+          deleted_at?: string | null;
+        };
       };
       optimizations: {
         Row: Optimization;
@@ -54,9 +62,9 @@ if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
  * Supabase client for browser/server components
  * Uses anon key for RLS-protected operations
  */
-export const supabase = createClient<Database>(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+export const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 /**
@@ -68,7 +76,7 @@ export function createAdminClient() {
     throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY environment variable");
   }
 
-  return createClient<Database>(
+  return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY,
     {
@@ -95,7 +103,7 @@ export async function getOrCreateUser(email: string): Promise<User> {
     .single();
 
   if (existingUser) {
-    return existingUser;
+    return existingUser as User;
   }
 
   // Create new user
@@ -109,7 +117,11 @@ export async function getOrCreateUser(email: string): Promise<User> {
     throw new Error(`Failed to create user: ${error.message}`);
   }
 
-  return newUser;
+  if (!newUser) {
+    throw new Error("Failed to create user: no data returned");
+  }
+
+  return newUser as User;
 }
 
 /**
@@ -124,7 +136,8 @@ export async function hasUsedTrial(userId: string): Promise<boolean> {
     .eq("id", userId)
     .single();
 
-  return data?.trial_used_at !== null;
+  const user = data as { trial_used_at: string | null } | null;
+  return user?.trial_used_at !== null;
 }
 
 /**
