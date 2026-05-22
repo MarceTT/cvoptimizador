@@ -2,194 +2,203 @@
 
 import { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
+import { Upload, FileText, X, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const MAX_PAGES = 10;
 const ACCEPTED_TYPES = ["application/pdf"];
 
 export interface FileValidationError {
-  code: "oversized" | "invalid_type" | "protected" | "corrupt" | "image_only" | "too_long";
+  code: "file_too_large" | "invalid_type" | "generic";
   message: string;
 }
 
-export interface FileUploadProps {
+interface FileUploadProps {
   onFileSelect: (file: File) => void;
   onError: (error: FileValidationError) => void;
   disabled?: boolean;
   className?: string;
 }
 
-export function FileUpload({ onFileSelect, onError, disabled, className }: FileUploadProps) {
+export function FileUpload({
+  onFileSelect,
+  onError,
+  disabled = false,
+  className,
+}: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const validateFile = useCallback(
-    async (file: File): Promise<boolean> => {
-      // Check file type
+    (file: File): FileValidationError | null => {
       if (!ACCEPTED_TYPES.includes(file.type)) {
-        onError({
+        return {
           code: "invalid_type",
           message: "Solo se aceptan archivos PDF",
-        });
-        return false;
+        };
       }
 
-      // Check file size
       if (file.size > MAX_FILE_SIZE) {
-        onError({
-          code: "oversized",
+        return {
+          code: "file_too_large",
           message: "Archivo muy grande (máx 5MB)",
-        });
-        return false;
+        };
       }
 
-      return true;
+      return null;
     },
-    [onError]
+    []
   );
 
   const handleFile = useCallback(
-    async (file: File) => {
-      const isValid = await validateFile(file);
-      if (isValid) {
-        setSelectedFile(file);
-        onFileSelect(file);
+    (file: File) => {
+      const error = validateFile(file);
+      if (error) {
+        onError(error);
+        setSelectedFile(null);
+        return;
       }
+
+      setSelectedFile(file);
+      onFileSelect(file);
     },
-    [validateFile, onFileSelect]
+    [validateFile, onError, onFileSelect]
   );
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  }, []);
-
   const handleDrop = useCallback(
-    async (e: React.DragEvent) => {
+    (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(false);
 
       if (disabled) return;
 
-      const files = e.dataTransfer.files;
-      if (files.length > 0) {
-        await handleFile(files[0]);
+      const file = e.dataTransfer.files[0];
+      if (file) {
+        handleFile(file);
       }
     },
     [disabled, handleFile]
   );
 
-  const handleInputChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (files && files.length > 0) {
-        await handleFile(files[0]);
+  const handleDragOver = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!disabled) {
+        setIsDragging(true);
       }
+    },
+    [disabled]
+  );
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        handleFile(file);
+      }
+      // Reset input so the same file can be selected again
+      e.target.value = "";
     },
     [handleFile]
   );
 
-  const handleRemove = useCallback(() => {
+  const handleRemoveFile = useCallback(() => {
     setSelectedFile(null);
   }, []);
 
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  if (selectedFile) {
+    return (
+      <div
+        className={cn(
+          "flex items-center gap-4 rounded-xl border-2 border-primary/30 bg-primary/5 p-4",
+          className
+        )}
+      >
+        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+          <FileText className="h-6 w-6 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="truncate font-medium">{selectedFile.name}</p>
+          <p className="text-sm text-muted-foreground">
+            {formatFileSize(selectedFile.size)}
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={handleRemoveFile}
+          disabled={disabled}
+          className="shrink-0"
+        >
+          <X className="h-4 w-4" />
+          <span className="sr-only">Eliminar archivo</span>
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <div className={cn("w-full", className)}>
-      {!selectedFile ? (
-        <label
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
+    <div
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      className={cn(
+        "relative rounded-xl border-2 border-dashed transition-all duration-200",
+        isDragging
+          ? "border-primary bg-primary/5"
+          : "border-border hover:border-primary/50 hover:bg-muted/50",
+        disabled && "pointer-events-none opacity-50",
+        className
+      )}
+    >
+      <input
+        type="file"
+        accept=".pdf,application/pdf"
+        onChange={handleInputChange}
+        disabled={disabled}
+        className="absolute inset-0 cursor-pointer opacity-0"
+        aria-label="Subir archivo PDF"
+      />
+
+      <div className="flex flex-col items-center justify-center px-6 py-10">
+        <div
           className={cn(
-            "flex min-h-[200px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors",
-            isDragging
-              ? "border-primary bg-primary/5"
-              : "border-border hover:border-primary/50 hover:bg-secondary/50",
-            disabled && "cursor-not-allowed opacity-50"
+            "flex h-14 w-14 items-center justify-center rounded-full transition-colors",
+            isDragging ? "bg-primary/20" : "bg-muted"
           )}
         >
-          <input
-            type="file"
-            accept=".pdf,application/pdf"
-            onChange={handleInputChange}
-            disabled={disabled}
-            className="sr-only"
-          />
-          
-          <svg
-            className="mb-4 h-12 w-12 text-muted-foreground"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-            />
-          </svg>
-          
-          <p className="text-base font-medium">
-            {isDragging ? "Soltá el archivo aquí" : "Arrastrá tu CV o hacé clic para seleccionar"}
-          </p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            PDF, máximo 5MB, hasta 10 páginas
-          </p>
-        </label>
-      ) : (
-        <div className="flex items-center justify-between rounded-lg border border-border bg-secondary/30 p-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <svg
-                className="h-5 w-5 text-primary"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-            </div>
-            <div>
-              <p className="text-sm font-medium">{selectedFile.name}</p>
-              <p className="text-xs text-muted-foreground">
-                {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={handleRemove}
-            disabled={disabled}
+          <Upload
             className={cn(
-              "rounded-md p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive",
-              disabled && "cursor-not-allowed opacity-50"
+              "h-6 w-6 transition-colors",
+              isDragging ? "text-primary" : "text-muted-foreground"
             )}
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
+          />
         </div>
-      )}
+
+        <p className="mt-4 text-center">
+          <span className="font-medium text-primary">Hacé clic para subir</span>
+          <span className="text-muted-foreground"> o arrastrá tu archivo</span>
+        </p>
+
+        <p className="mt-2 text-sm text-muted-foreground">
+          PDF (máx. 5MB)
+        </p>
+      </div>
     </div>
   );
 }

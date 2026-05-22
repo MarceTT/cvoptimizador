@@ -3,7 +3,21 @@
 import { use, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  FileText,
+  Download,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Loader2,
+  RefreshCw,
+  Lock,
+  ArrowLeft,
+  Sparkles,
+} from "lucide-react";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -34,7 +48,6 @@ export default function DownloadPage({ params }: PageProps) {
     error: null,
   });
 
-  // Fetch download URL on mount
   useEffect(() => {
     async function fetchDownloadUrl() {
       try {
@@ -43,21 +56,12 @@ export default function DownloadPage({ params }: PageProps) {
         const data = await response.json();
 
         if (!response.ok) {
-          // Handle specific error codes
           if (response.status === 403) {
-            if (data.error === "Pago requerido") {
-              setState({
-                status: "unauthorized",
-                downloadUrl: null,
-                error: data.error,
-              });
-            } else {
-              setState({
-                status: "error",
-                downloadUrl: null,
-                error: data.error || "Token inválido",
-              });
-            }
+            setState({
+              status: data.error === "Pago requerido" ? "unauthorized" : "error",
+              downloadUrl: null,
+              error: data.error,
+            });
             return;
           }
 
@@ -80,14 +84,14 @@ export default function DownloadPage({ params }: PageProps) {
 
         setState({
           status: "ready",
-          downloadUrl: data.downloadUrl,
+          downloadUrl: data.download_url,
           error: null,
         });
       } catch {
         setState({
           status: "error",
           downloadUrl: null,
-          error: "Error de conexión. Intentá de nuevo.",
+          error: "Error de conexión",
         });
       }
     }
@@ -95,302 +99,212 @@ export default function DownloadPage({ params }: PageProps) {
     fetchDownloadUrl();
   }, [id, isTrial]);
 
-  // Handle download click
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!state.downloadUrl) return;
 
     setState((prev) => ({ ...prev, status: "downloading" }));
 
-    // Open download URL in new tab/trigger download
-    window.open(state.downloadUrl, "_blank");
+    try {
+      const response = await fetch(state.downloadUrl);
+      if (!response.ok) throw new Error("Error al descargar");
 
-    // Reset to ready state after a brief delay
-    setTimeout(() => {
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `cv-optimizado-${id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
       setState((prev) => ({ ...prev, status: "ready" }));
-    }, 2000);
+    } catch {
+      setState({
+        status: "error",
+        downloadUrl: state.downloadUrl,
+        error: "Error al descargar el archivo",
+      });
+    }
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
-          <Link href="/" className="text-xl font-bold text-primary">
-            CVOptimizador
-          </Link>
-          <Link
-            href="/upload"
-            className="text-sm text-muted-foreground hover:text-foreground"
-          >
-            Nuevo análisis
-          </Link>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-2xl px-4 py-12">
-        {/* Loading State */}
-        {state.status === "loading" && (
-          <div className="text-center">
-            <LoadingSpinner className="mx-auto h-12 w-12" />
-            <h1 className="mt-6 text-2xl font-bold">Preparando tu descarga...</h1>
-            <p className="mt-2 text-muted-foreground">
-              Estamos generando tu CV optimizado
-            </p>
-          </div>
-        )}
-
-        {/* Ready State */}
-        {state.status === "ready" && (
-          <div className="text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-              <CheckIcon className="h-8 w-8 text-green-600" />
-            </div>
-            <h1 className="mt-6 text-2xl font-bold">¡Tu CV está listo!</h1>
-            <p className="mt-2 text-muted-foreground">
-              {isTrial
-                ? "Tu prueba gratuita ha sido procesada"
-                : "Tu pago fue confirmado exitosamente"}
-            </p>
-
-            <button
-              onClick={handleDownload}
-              className={cn(
-                "mt-8 inline-flex items-center gap-2 rounded-lg bg-primary px-8 py-4 text-lg font-medium text-primary-foreground",
-                "hover:bg-primary/90 transition-colors"
-              )}
-            >
-              <DownloadIcon className="h-5 w-5" />
-              Descargar CV optimizado
-            </button>
-
-            <div className="mt-8 rounded-lg bg-muted/50 p-4">
-              <p className="text-sm text-muted-foreground">
-                El enlace de descarga estará disponible por <strong>7 días</strong>.
-                Guardá el archivo en un lugar seguro.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Downloading State */}
-        {state.status === "downloading" && (
-          <div className="text-center">
-            <LoadingSpinner className="mx-auto h-12 w-12" />
-            <h1 className="mt-6 text-2xl font-bold">Descargando...</h1>
-            <p className="mt-2 text-muted-foreground">
-              Tu archivo se está descargando
-            </p>
-          </div>
-        )}
-
-        {/* Expired State */}
-        {state.status === "expired" && (
-          <div className="text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-yellow-100">
-              <ClockIcon className="h-8 w-8 text-yellow-600" />
-            </div>
-            <h1 className="mt-6 text-2xl font-bold">Enlace expirado</h1>
-            <p className="mt-2 text-muted-foreground">
-              Este enlace de descarga ya no está disponible.
-              Los CVs optimizados expiran después de 7 días.
-            </p>
-            <Link
-              href="/upload"
-              className={cn(
-                "mt-8 inline-block rounded-lg bg-primary px-6 py-3 font-medium text-primary-foreground",
-                "hover:bg-primary/90 transition-colors"
-              )}
-            >
-              Crear nueva optimización
-            </Link>
-          </div>
-        )}
-
-        {/* Unauthorized State */}
-        {state.status === "unauthorized" && (
-          <div className="text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
-              <LockIcon className="h-8 w-8 text-red-600" />
-            </div>
-            <h1 className="mt-6 text-2xl font-bold">Pago requerido</h1>
-            <p className="mt-2 text-muted-foreground">
-              Necesitás completar el pago para descargar tu CV optimizado.
-            </p>
-            <Link
-              href={`/results/${id}`}
-              className={cn(
-                "mt-8 inline-block rounded-lg bg-primary px-6 py-3 font-medium text-primary-foreground",
-                "hover:bg-primary/90 transition-colors"
-              )}
-            >
-              Volver a resultados
-            </Link>
-          </div>
-        )}
-
-        {/* Error State */}
-        {state.status === "error" && (
-          <div className="text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
-              <XIcon className="h-8 w-8 text-red-600" />
-            </div>
-            <h1 className="mt-6 text-2xl font-bold">Error</h1>
-            <p className="mt-2 text-muted-foreground">
-              {state.error || "Ocurrió un error al procesar tu descarga."}
-            </p>
-            <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:justify-center">
-              <button
-                onClick={() => window.location.reload()}
-                className={cn(
-                  "rounded-lg border border-border px-6 py-3 font-medium",
-                  "hover:bg-muted transition-colors"
-                )}
-              >
-                Reintentar
-              </button>
-              <Link
-                href={`/results/${id}`}
-                className={cn(
-                  "rounded-lg bg-primary px-6 py-3 font-medium text-primary-foreground",
-                  "hover:bg-primary/90 transition-colors"
-                )}
-              >
-                Volver a resultados
-              </Link>
-            </div>
-          </div>
-        )}
-
-        {/* Help Section */}
-        <div className="mt-12 border-t border-border pt-8 text-center">
-          <p className="text-sm text-muted-foreground">
-            ¿Problemas con la descarga?{" "}
-            <a
-              href="mailto:soporte@cvoptimizador.cl"
-              className="text-primary hover:underline"
-            >
-              Contactanos
-            </a>
-          </p>
-        </div>
+    <div className="min-h-screen bg-muted/30">
+      <Header />
+      <main className="mx-auto max-w-lg px-4 py-12">
+        <StatusContent 
+          status={state.status} 
+          error={state.error}
+          isTrial={isTrial}
+          id={id}
+          onDownload={handleDownload}
+        />
       </main>
     </div>
   );
 }
 
-// Icon Components
-
-function LoadingSpinner({ className }: { className?: string }) {
+function Header() {
   return (
-    <svg
-      className={cn("animate-spin text-primary", className)}
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
-    >
-      <circle
-        className="opacity-25"
-        cx="12"
-        cy="12"
-        r="10"
-        stroke="currentColor"
-        strokeWidth="4"
-      />
-      <path
-        className="opacity-75"
-        fill="currentColor"
-        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-      />
-    </svg>
+    <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4">
+        <Link href="/" className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+            <FileText className="h-4 w-4 text-primary-foreground" />
+          </div>
+          <span className="text-xl font-bold">CVOptimizador</span>
+        </Link>
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/upload">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Nuevo análisis
+          </Link>
+        </Button>
+      </div>
+    </header>
   );
 }
 
-function CheckIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M5 13l4 4L19 7"
-      />
-    </svg>
-  );
+interface StatusContentProps {
+  status: DownloadStatus;
+  error: string | null;
+  isTrial: boolean;
+  id: string;
+  onDownload: () => void;
 }
 
-function DownloadIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-      />
-    </svg>
-  );
-}
+function StatusContent({ status, error, isTrial, id, onDownload }: StatusContentProps) {
+  if (status === "loading") {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center py-12">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="mt-4 font-medium">Preparando tu descarga...</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Solo un momento
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
-function ClockIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-      />
-    </svg>
-  );
-}
+  if (status === "ready" || status === "downloading") {
+    return (
+      <Card className="overflow-hidden">
+        <div className="bg-gradient-to-r from-green-500/10 via-green-500/5 to-accent/10 p-8">
+          <div className="flex flex-col items-center text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+              <CheckCircle2 className="h-8 w-8 text-green-600" />
+            </div>
+            <Badge variant="success" className="mt-4">
+              {isTrial ? "Prueba gratuita" : "Pago confirmado"}
+            </Badge>
+            <h1 className="mt-4 text-2xl font-bold">¡Tu CV está listo!</h1>
+            <p className="mt-2 text-muted-foreground">
+              CV optimizado para pasar filtros ATS
+            </p>
+          </div>
+        </div>
+        <CardContent className="flex flex-col items-center py-8">
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/50 px-4 py-3">
+            <FileText className="h-8 w-8 text-primary" />
+            <div>
+              <p className="font-medium">cv-optimizado-{id.slice(0, 8)}.pdf</p>
+              <p className="text-sm text-muted-foreground">PDF • Listo para enviar</p>
+            </div>
+          </div>
+          <Button
+            size="xl"
+            className="mt-6 w-full"
+            onClick={onDownload}
+            disabled={status === "downloading"}
+          >
+            {status === "downloading" ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Descargando...
+              </>
+            ) : (
+              <>
+                <Download className="mr-2 h-4 w-4" />
+                Descargar PDF
+              </>
+            )}
+          </Button>
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            Tu CV fue optimizado con IA para maximizar tu puntaje ATS
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
-function LockIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-      />
-    </svg>
-  );
-}
+  if (status === "unauthorized") {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center py-12">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900/30">
+            <Lock className="h-8 w-8 text-yellow-600" />
+          </div>
+          <h1 className="mt-6 text-xl font-bold">Pago requerido</h1>
+          <p className="mt-2 text-center text-muted-foreground">
+            Necesitás completar el pago para descargar tu CV optimizado.
+          </p>
+          <Button className="mt-6" asChild>
+            <Link href={`/results/${id}`}>
+              <Sparkles className="mr-2 h-4 w-4" />
+              Ver resultados y pagar
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
-function XIcon({ className }: { className?: string }) {
+  if (status === "expired") {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center py-12">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+            <Clock className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <h1 className="mt-6 text-xl font-bold">Enlace expirado</h1>
+          <p className="mt-2 text-center text-muted-foreground">
+            Este enlace de descarga ya no está disponible.
+            Los enlaces expiran después de 7 días.
+          </p>
+          <Button className="mt-6" asChild>
+            <Link href="/upload">
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Analizar otro CV
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Error state
   return (
-    <svg
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M6 18L18 6M6 6l12 12"
-      />
-    </svg>
+    <Card>
+      <CardContent className="flex flex-col items-center py-12">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+          <XCircle className="h-8 w-8 text-red-600" />
+        </div>
+        <h1 className="mt-6 text-xl font-bold">Error</h1>
+        <p className="mt-2 text-center text-muted-foreground">
+          {error || "Ocurrió un error al preparar la descarga."}
+        </p>
+        <div className="mt-6 flex gap-3">
+          <Button variant="outline" onClick={() => window.location.reload()}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Reintentar
+          </Button>
+          <Button asChild>
+            <Link href="/upload">Nuevo análisis</Link>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

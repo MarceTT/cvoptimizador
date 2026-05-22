@@ -4,8 +4,24 @@ import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FileUpload, type FileValidationError } from "@/components/FileUpload";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { analyzeCV } from "@/lib/api-client";
+import { 
+  FileText, 
+  ArrowLeft, 
+  Loader2, 
+  Sparkles,
+  AlertCircle,
+  CheckCircle2,
+  Info
+} from "lucide-react";
 
 const MIN_JD_LENGTH = 50;
 
@@ -65,9 +81,9 @@ export default function UploadPage() {
         (progressData) => {
           const stageLabels: Record<string, string> = {
             extracting: "Extrayendo texto del PDF...",
-            analyzing: "Analizando tu CV...",
+            analyzing: "Analizando tu CV con IA...",
             optimizing: "Optimizando contenido...",
-            scoring: "Calculando puntajes...",
+            scoring: "Calculando puntajes ATS...",
           };
           setProgress({
             stage: stageLabels[progressData.stage ?? ""] ?? progressData.stage ?? "",
@@ -76,7 +92,6 @@ export default function UploadPage() {
         }
       );
 
-      // Redirect to results page
       router.push(`/results/${result.id}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Error al analizar el CV";
@@ -91,146 +106,173 @@ export default function UploadPage() {
   const jdIsValid = jdLength >= MIN_JD_LENGTH;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-muted/30">
       {/* Header */}
-      <header className="border-b border-border">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
-          <Link href="/" className="text-xl font-bold text-primary">
-            CVOptimizador
+      <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+              <FileText className="h-4 w-4 text-primary-foreground" />
+            </div>
+            <span className="text-xl font-bold">CVOptimizador</span>
           </Link>
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Volver
+            </Link>
+          </Button>
         </div>
       </header>
 
       <main className="mx-auto max-w-2xl px-4 py-12">
-        <h1 className="text-3xl font-bold">Analizá tu CV</h1>
-        <p className="mt-2 text-muted-foreground">
-          Subí tu currículum y la descripción del puesto para obtener tu análisis ATS
-        </p>
+        <div className="text-center">
+          <Badge variant="secondary" className="mb-4">
+            <Sparkles className="mr-1.5 h-3 w-3" />
+            Análisis gratuito
+          </Badge>
+          <h1 className="text-3xl font-bold tracking-tight">Analizá tu CV</h1>
+          <p className="mt-2 text-muted-foreground">
+            Subí tu currículum y la descripción del puesto para obtener tu análisis ATS
+          </p>
+        </div>
 
-        <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-          {/* File Upload */}
-          <div>
-            <label className="block text-sm font-medium">
-              Tu CV en PDF <span className="text-destructive">*</span>
-            </label>
-            <FileUpload
-              onFileSelect={handleFileSelect}
-              onError={handleFileError}
-              disabled={isSubmitting}
-              className="mt-2"
-            />
-          </div>
-
-          {/* Job Description */}
-          <div>
-            <label htmlFor="job-description" className="block text-sm font-medium">
-              Descripción del puesto <span className="text-destructive">*</span>
-            </label>
-            <textarea
-              id="job-description"
-              value={jobDescription}
-              onChange={(e) => {
-                setJobDescription(e.target.value);
-                setError(null);
-              }}
-              disabled={isSubmitting}
-              placeholder="Pegá acá la descripción completa del puesto al que querés aplicar..."
-              rows={8}
-              className={cn(
-                "mt-2 w-full rounded-lg border bg-background px-4 py-3 text-sm",
-                "placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20",
-                "disabled:cursor-not-allowed disabled:opacity-50",
-                !jdIsValid && jdLength > 0 ? "border-destructive" : "border-input"
-              )}
-            />
-            <p className={cn("mt-1 text-xs", jdIsValid ? "text-muted-foreground" : "text-destructive")}>
-              {jdLength}/{MIN_JD_LENGTH} caracteres mínimos
-            </p>
-          </div>
-
-          {/* Optional Fields */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="cargo" className="block text-sm font-medium">
-                Cargo (opcional)
-              </label>
-              <input
-                id="cargo"
-                type="text"
-                value={cargo}
-                onChange={(e) => setCargo(e.target.value)}
-                disabled={isSubmitting}
-                placeholder="ej: Desarrollador Frontend"
-                className={cn(
-                  "mt-2 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm",
-                  "placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20",
-                  "disabled:cursor-not-allowed disabled:opacity-50"
-                )}
-              />
-            </div>
-            <div>
-              <label htmlFor="empresa" className="block text-sm font-medium">
-                Empresa (opcional)
-              </label>
-              <input
-                id="empresa"
-                type="text"
-                value={empresa}
-                onChange={(e) => setEmpresa(e.target.value)}
-                disabled={isSubmitting}
-                placeholder="ej: Mercado Libre"
-                className={cn(
-                  "mt-2 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm",
-                  "placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20",
-                  "disabled:cursor-not-allowed disabled:opacity-50"
-                )}
-              />
-            </div>
-          </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              {error}
-            </div>
-          )}
-
-          {/* Progress */}
-          {progress && (
-            <div className="rounded-lg bg-primary/5 px-4 py-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">{progress.stage}</span>
-                <span className="text-muted-foreground">{progress.progress}%</span>
-              </div>
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-primary/20">
-                <div
-                  className="h-full bg-primary transition-all duration-300"
-                  style={{ width: `${progress.progress}%` }}
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle>Información del análisis</CardTitle>
+            <CardDescription>
+              Completá los campos para analizar tu CV contra la oferta laboral
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* File Upload */}
+              <div className="space-y-2">
+                <Label htmlFor="cv-file">
+                  Tu CV en PDF <span className="text-destructive">*</span>
+                </Label>
+                <FileUpload
+                  onFileSelect={handleFileSelect}
+                  onError={handleFileError}
+                  disabled={isSubmitting}
                 />
+                {file && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <CheckCircle2 className="h-4 w-4 text-accent" />
+                    {file.name}
+                  </div>
+                )}
               </div>
-            </div>
-          )}
 
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={isSubmitting || !file || !jdIsValid}
-            className={cn(
-              "w-full rounded-lg bg-primary px-6 py-3 text-base font-medium text-primary-foreground",
-              "transition-colors hover:bg-primary/90",
-              "disabled:cursor-not-allowed disabled:opacity-50"
-            )}
-          >
-            {isSubmitting ? "Analizando..." : "Analizar CV"}
-          </button>
-        </form>
+              {/* Job Description */}
+              <div className="space-y-2">
+                <Label htmlFor="job-description">
+                  Descripción del puesto <span className="text-destructive">*</span>
+                </Label>
+                <Textarea
+                  id="job-description"
+                  value={jobDescription}
+                  onChange={(e) => {
+                    setJobDescription(e.target.value);
+                    setError(null);
+                  }}
+                  disabled={isSubmitting}
+                  placeholder="Pegá acá la descripción completa del puesto al que querés aplicar..."
+                  rows={8}
+                  className={cn(
+                    "resize-none",
+                    !jdIsValid && jdLength > 0 && "border-destructive focus-visible:ring-destructive"
+                  )}
+                />
+                <p className={cn(
+                  "text-xs",
+                  jdIsValid ? "text-muted-foreground" : jdLength > 0 ? "text-destructive" : "text-muted-foreground"
+                )}>
+                  {jdLength}/{MIN_JD_LENGTH} caracteres mínimos
+                  {jdIsValid && <CheckCircle2 className="ml-1 inline h-3 w-3 text-accent" />}
+                </p>
+              </div>
+
+              {/* Optional Fields */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="cargo">Cargo (opcional)</Label>
+                  <Input
+                    id="cargo"
+                    type="text"
+                    value={cargo}
+                    onChange={(e) => setCargo(e.target.value)}
+                    disabled={isSubmitting}
+                    placeholder="ej: Desarrollador Frontend"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="empresa">Empresa (opcional)</Label>
+                  <Input
+                    id="empresa"
+                    type="text"
+                    value={empresa}
+                    onChange={(e) => setEmpresa(e.target.value)}
+                    disabled={isSubmitting}
+                    placeholder="ej: Mercado Libre"
+                  />
+                </div>
+              </div>
+
+              {/* Error Message */}
+              {error && (
+                <div className="flex items-start gap-3 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  {error}
+                </div>
+              )}
+
+              {/* Progress */}
+              {progress && (
+                <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2 font-medium">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      {progress.stage}
+                    </span>
+                    <span className="text-muted-foreground">{progress.progress}%</span>
+                  </div>
+                  <Progress value={progress.progress} className="mt-3 h-2" />
+                </div>
+              )}
+
+              {/* Submit Button */}
+              <Button
+                type="submit"
+                size="xl"
+                disabled={isSubmitting || !file || !jdIsValid}
+                className="w-full"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Analizando...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Analizar CV
+                  </>
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
 
         {/* Info Box */}
-        <div className="mt-8 rounded-lg border border-border bg-secondary/30 px-4 py-4">
-          <p className="text-sm text-muted-foreground">
-            <strong className="text-foreground">¿Primera vez?</strong> Tu primer análisis es
-            gratis. Solo pagás $2.990 CLP si querés descargar el CV optimizado.
-          </p>
+        <div className="mt-6 flex items-start gap-3 rounded-lg border border-border bg-card px-4 py-4">
+          <Info className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <div className="text-sm">
+            <p className="font-medium">¿Primera vez?</p>
+            <p className="mt-1 text-muted-foreground">
+              Tu primer análisis es gratis. Solo pagás $2.990 CLP si querés descargar el CV optimizado.
+            </p>
+          </div>
         </div>
       </main>
     </div>

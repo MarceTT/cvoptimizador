@@ -1,121 +1,91 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { CheckCircle2, XCircle, Plus } from "lucide-react";
 
 interface KeywordListProps {
-  keywordsAdded: string[];
-  keywordsMissing: string[];
+  title: string;
+  keywords: string[];
+  variant: "added" | "missing" | "existing";
   className?: string;
 }
 
-export function KeywordList({ keywordsAdded, keywordsMissing, className }: KeywordListProps) {
-  const hasAdded = keywordsAdded.length > 0;
-  const hasMissing = keywordsMissing.length > 0;
+export function KeywordList({ title, keywords, variant, className }: KeywordListProps) {
+  if (keywords.length === 0) {
+    return null;
+  }
+
+  const Icon = variant === "added" 
+    ? Plus 
+    : variant === "existing" 
+    ? CheckCircle2 
+    : XCircle;
+
+  const badgeVariant = variant === "added" 
+    ? "success" 
+    : variant === "existing" 
+    ? "secondary" 
+    : "destructive";
+
+  const iconColor = variant === "added"
+    ? "text-green-600"
+    : variant === "existing"
+    ? "text-muted-foreground"
+    : "text-red-500";
 
   return (
-    <div className={cn("rounded-lg border border-border bg-card p-6", className)}>
-      <h3 className="text-lg font-semibold">Palabras Clave</h3>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Keywords que buscan los sistemas ATS para este puesto
-      </p>
-
-      <div className="mt-6 space-y-6">
-        {/* Keywords Added */}
-        <div>
-          <div className="flex items-center gap-2">
-            <svg
-              className="h-5 w-5 text-green-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <span className="text-sm font-medium">
-              Agregadas ({keywordsAdded.length})
-            </span>
-          </div>
-          {hasAdded ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {keywordsAdded.map((keyword) => (
-                <KeywordTag key={keyword} keyword={keyword} variant="added" />
-              ))}
-            </div>
-          ) : (
-            <p className="mt-3 text-sm text-muted-foreground">
-              No se agregaron keywords nuevas
-            </p>
-          )}
-        </div>
-
-        {/* Keywords Missing */}
-        <div>
-          <div className="flex items-center gap-2">
-            <svg
-              className="h-5 w-5 text-destructive"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <span className="text-sm font-medium">
-              Faltantes ({keywordsMissing.length})
-            </span>
-          </div>
-          {hasMissing ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {keywordsMissing.map((keyword) => (
-                <KeywordTag key={keyword} keyword={keyword} variant="missing" />
-              ))}
-            </div>
-          ) : (
-            <p className="mt-3 text-sm text-muted-foreground">
-              ¡Tu CV tiene todas las keywords importantes!
-            </p>
-          )}
-        </div>
+    <div className={cn("space-y-3", className)}>
+      <div className="flex items-center gap-2">
+        <Icon className={cn("h-4 w-4", iconColor)} />
+        <h3 className="font-medium">{title}</h3>
+        <Badge variant="outline" className="ml-auto">
+          {keywords.length}
+        </Badge>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {keywords.map((keyword, index) => (
+          <Badge key={index} variant={badgeVariant}>
+            {keyword}
+          </Badge>
+        ))}
       </div>
     </div>
   );
 }
 
-function KeywordTag({
-  keyword,
-  variant,
-}: {
-  keyword: string;
-  variant: "added" | "missing";
-}) {
+interface KeywordComparisonProps {
+  keywordsAdded: string[];
+  keywordsExisting: string[];
+  keywordsMissing?: string[];
+  className?: string;
+}
+
+export function KeywordComparison({
+  keywordsAdded,
+  keywordsExisting,
+  keywordsMissing = [],
+  className,
+}: KeywordComparisonProps) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full px-3 py-1 text-xs font-medium",
-        variant === "added"
-          ? "bg-green-100 text-green-800"
-          : "bg-destructive/10 text-destructive"
+    <div className={cn("space-y-6", className)}>
+      <KeywordList
+        title="Keywords agregadas"
+        keywords={keywordsAdded}
+        variant="added"
+      />
+      <KeywordList
+        title="Keywords que ya tenías"
+        keywords={keywordsExisting}
+        variant="existing"
+      />
+      {keywordsMissing.length > 0 && (
+        <KeywordList
+          title="Keywords que faltan"
+          keywords={keywordsMissing}
+          variant="missing"
+        />
       )}
-    >
-      {variant === "added" && (
-        <svg className="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-          <path
-            fillRule="evenodd"
-            d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-            clipRule="evenodd"
-          />
-        </svg>
-      )}
-      {keyword}
-    </span>
+    </div>
   );
 }
