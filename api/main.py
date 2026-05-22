@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from routers.analyze import router as analyze_router
+from routers.pdf import router as pdf_router
 
 app = FastAPI(
     title="CVOptimizador API",
@@ -19,6 +20,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(analyze_router)
+app.include_router(pdf_router)
 
 
 @app.get("/health")
