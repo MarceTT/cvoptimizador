@@ -12,8 +12,8 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
 
 from middleware.auth import AuthenticatedUser
-from services.claude import analyze_cv
-from services.pdf_extractor import PDFExtractionError, extract_text_from_pdf
+from services.llm import analyze_cv_streaming, LLMError
+from services.document_extractor import DocumentExtractionError, extract_text
 
 router = APIRouter(prefix="/analyze", tags=["analysis"])
 
@@ -32,11 +32,8 @@ async def sse_generator(
 
     Yields SSE-formatted events for progress and final result.
     """
-    # Send initial progress
-    yield _format_sse({"type": "progress", "stage": "extracting", "progress": 10})
-
-    # Run Claude analysis
-    async for event in analyze_cv(cv_text, job_description):
+    # Run LLM analysis with streaming
+    async for event in analyze_cv_streaming(cv_text, job_description):
         if event["type"] == "progress":
             yield _format_sse({
                 "type": "progress",
@@ -66,7 +63,7 @@ async def sse_generator(
             })
 
         elif event["type"] == "error":
-            yield _format_sse({"type": "error", "error": event["message"]})
+            yield _format_sse({"type": "error", "error": event.get("error", "Error desconocido")})
 
 
 def _format_sse(data: dict) -> str:
@@ -77,7 +74,7 @@ def _format_sse(data: dict) -> str:
 @router.post("")
 async def analyze_endpoint(
     user: AuthenticatedUser,
-    cv: Annotated[UploadFile, File(description="CV PDF file")],
+    cv: Annotated[UploadFile, File(description="CV file (PDF or DOCX)")],
     job_description: Annotated[str, Form(description="Job description text")],
     cargo: Annotated[str | None, Form(description="Job title (optional)")] = None,
     empresa: Annotated[str | None, Form(description="Company name (optional)")] = None,
@@ -93,10 +90,19 @@ async def analyze_endpoint(
     - error: {"type": "error", "error": str}
     """
     # Validate file type
-    if cv.content_type != "application/pdf":
+    allowed_types = [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ]
+    allowed_extensions = [".pdf", ".docx"]
+    
+    filename = cv.filename or "cv.pdf"
+    file_ext = filename.lower().split(".")[-1] if "." in filename else ""
+    
+    if cv.content_type not in allowed_types and f".{file_ext}" not in allowed_extensions:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Solo se aceptan archivos PDF",
+            detail="Solo se aceptan archivos PDF o DOCX",
         )
 
     # Validate job description
@@ -130,9 +136,9 @@ async def analyze_endpoint(
             )
 
         # Extract text
-        extraction = extract_text_from_pdf(content, cv.filename or "cv.pdf")
+        extraction = extract_text(content, cv.filename or "cv.pdf")
 
-    except PDFExtractionError as e:
+    except DocumentExtractionError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=e.message,

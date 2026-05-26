@@ -6,7 +6,11 @@ import { Upload, FileText, X, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const ACCEPTED_TYPES = ["application/pdf"];
+const ACCEPTED_TYPES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+const ACCEPTED_EXTENSIONS = [".pdf", ".docx"];
 
 export interface FileValidationError {
   code: "file_too_large" | "invalid_type" | "generic";
@@ -31,10 +35,14 @@ export function FileUpload({
 
   const validateFile = useCallback(
     (file: File): FileValidationError | null => {
-      if (!ACCEPTED_TYPES.includes(file.type)) {
+      const extension = file.name.toLowerCase().split(".").pop() || "";
+      const isValidType = ACCEPTED_TYPES.includes(file.type);
+      const isValidExtension = ACCEPTED_EXTENSIONS.includes(`.${extension}`);
+      
+      if (!isValidType && !isValidExtension) {
         return {
           code: "invalid_type",
-          message: "Solo se aceptan archivos PDF",
+          message: "Solo se aceptan archivos PDF o DOCX",
         };
       }
 
@@ -168,11 +176,11 @@ export function FileUpload({
     >
       <input
         type="file"
-        accept=".pdf,application/pdf"
+        accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         onChange={handleInputChange}
         disabled={disabled}
         className="absolute inset-0 cursor-pointer opacity-0"
-        aria-label="Subir archivo PDF"
+        aria-label="Subir archivo PDF o DOCX"
       />
 
       <div className="flex flex-col items-center justify-center px-6 py-10">
@@ -196,7 +204,7 @@ export function FileUpload({
         </p>
 
         <p className="mt-2 text-sm text-muted-foreground">
-          PDF (máx. 5MB)
+          PDF o DOCX (máx. 5MB)
         </p>
       </div>
     </div>
